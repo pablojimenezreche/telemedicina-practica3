@@ -22,10 +22,15 @@ conexionBD.query("SELECT NOW()",function(error,resultado){
 });
 
 var app=express();
-app.listen(3000);
+//PARA RENDER
+var PORT=process.env.PORT||3000;
+
+app.listen(PORT,function(){
+    console.log("Servidor REST escuchando en puerto "+PORT);
+});
 
 app.use("/gestor",express.static("cliente_rest"));
-app.use("/sanitario",express.static("cliente_rpc"));
+// app.use("/sanitario",express.static("cliente_rpc"));
 app.use(express.json());
 
 const ID_AREA=2;
