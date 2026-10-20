@@ -26,7 +26,7 @@ var app=express();
 //PARA RENDER
 var PORT=process.env.PORT||3000;
 
-app.listen(PORT,function(){
+app.listen(PORT,"0.0.0.0",function(){
     console.log("Servidor REST escuchando en puerto "+PORT);
 });
 
