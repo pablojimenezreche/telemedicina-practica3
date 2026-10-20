@@ -44,6 +44,9 @@ var areasMedicas = {
     18: "Urología"
 };
 
+var URL_MINISTERIO="https://undefined.ua.es/telemedicina/api/datos";
+var ID_AREA=2;
+
 function conectarWS(id, nombre) {
     id_gestor_ws = id;
     nombre_gestor_ws = nombre;
@@ -793,31 +796,176 @@ function volver(){
 }
 
 //ENVIAR RESERVAS AL MINISTERIO
-function enviarReservasMinisterio() {
-    var boton = document.getElementById("btn_enviar_ministerio");
-    var estado = document.getElementById("estado_ministerio");
+function enviarReservasMinisterio(){
+    var boton=document.getElementById("btn_enviar_ministerio");
+    var estado=document.getElementById("estado_ministerio");
 
-    if (boton.disabled) return;
+    if(boton.disabled) return;
 
-    boton.disabled = true;
-    estado.textContent = "Enviando reservas...";
+    boton.disabled=true;
+    estado.textContent="Obteniendo reservas...";
 
-    rest.post("/api/ministerio/enviar", {}, function(codigo, respuesta) {
-        boton.disabled = false;
-
-        if (codigo === 200) {
-            estado.textContent = respuesta;
-        } else {
-            estado.textContent = respuesta ||
-                "No se pudo confirmar el envío. Revisa los datos publicados antes de repetir.";
+    // 1. Obtener categorías de nuestro servidor
+    rest.get("/api/categorias",function(codigoCategorias,categorias){
+        if(codigoCategorias!=200){
+            boton.disabled=false;
+            estado.textContent="Error al obtener las categorías.";
+            return;
         }
+
+        // 2. Obtener modelos de nuestro servidor
+        rest.get("/api/modelos",function(codigoModelos,modelos){
+            if(codigoModelos!=200){
+                boton.disabled=false;
+                estado.textContent="Error al obtener los modelos.";
+                return;
+            }
+
+            // 3. Obtener TODOS los recursos de nuestro servidor
+            rest.get(
+                "/api/recursos?categoria=Todos&modelo=Todos&ubicacion=Todos&estado=Todos",
+                function(codigoRecursos,recursos){
+
+                    if(codigoRecursos!=200){
+                        boton.disabled=false;
+                        estado.textContent="Error al obtener los recursos.";
+                        return;
+                    }
+
+                    if(recursos.length==0){
+                        boton.disabled=false;
+                        estado.textContent="No hay recursos.";
+                        return;
+                    }
+
+                    var datos=[];
+                    var pendientes=recursos.length;
+                    var errorReservas=false;
+
+                    // 4. Obtener las reservas de cada recurso
+                    for(let i=0;i<recursos.length;i++){
+
+                        let recurso=recursos[i];
+
+                        rest.get(
+                            "/api/recursos/"+recurso.id+"/reservas",
+                            function(codigoReservas,reservas){
+
+                                if(codigoReservas!=200){
+                                    errorReservas=true;
+                                }else{
+
+                                    // Averiguar categoría del recurso
+                                    var modeloObj=modelos.find(function(m){
+                                        return m.id==recurso.modelo;
+                                    });
+
+                                    var categoriaObj=null;
+
+                                    if(modeloObj){
+                                        categoriaObj=categorias.find(function(c){
+                                            return c.id==modeloObj.categoria;
+                                        });
+                                    }
+
+                                    // Añadir cada reserva al array datos
+                                    for(var j=0;j<reservas.length;j++){
+
+                                        var partesSanitario=
+                                            reservas[j].sanitario.trim().split(/\s+/);
+
+                                        var nombre=partesSanitario.shift();
+                                        var apellidos=partesSanitario.join(" ");
+
+                                        datos.push({
+                                            nombre:nombre,
+                                            apellidos:apellidos,
+                                            "categoría":categoriaObj ?
+                                                categoriaObj.nombre : "",
+                                            horas_estimadas:
+                                                reservas[j].horas_estimadas,
+                                            fec_pet:
+                                                reservas[j].fecha_peticion,
+                                            fec_ini:
+                                                reservas[j].fecha_inicio,
+                                            fecha_fin:
+                                                reservas[j].fecha_fin
+                                        });
+                                    }
+                                }
+
+                                pendientes--;
+
+                                // Cuando hayan terminado TODOS los GET
+                                if(pendientes==0){
+
+                                    if(errorReservas){
+                                        boton.disabled=false;
+                                        estado.textContent=
+                                            "Error al obtener alguna reserva.";
+                                        return;
+                                    }
+
+                                    if(datos.length==0){
+                                        boton.disabled=false;
+                                        estado.textContent=
+                                            "No hay reservas para enviar.";
+                                        return;
+                                    }
+                                    enviarDatosMinisterio(datos);
+                                }
+                            }
+                        );
+                    }
+                }
+            );
+        });
     });
+}
+
+function enviarDatosMinisterio(datos){
+
+    var boton=document.getElementById("btn_enviar_ministerio");
+    var estado=document.getElementById("estado_ministerio");
+
+    var hoy=new Date();
+
+    var fecha=
+        hoy.getFullYear()+"-"+
+        String(hoy.getMonth()+1).padStart(2,"0")+"-"+
+        String(hoy.getDate()).padStart(2,"0");
+
+    var envio={
+        id_area:ID_AREA,
+        fecha:fecha,
+        datos:datos
+    };
+
+    estado.textContent="Enviando reservas al Ministerio...";
+
+    // UN ÚNICO POST DIRECTAMENTE AL MINISTERIO
+    rest.post(
+        URL_MINISTERIO,
+        envio,
+        function(codigo,respuesta){
+
+            boton.disabled=false;
+
+            if(codigo>=200 && codigo<300){
+                estado.textContent=
+                    "Enviadas "+datos.length+" reservas al Ministerio.";
+            }else{
+                estado.textContent=
+                    "Error al enviar las reservas al Ministerio.";
+            }
+        }
+    );
 }
 
 //RANKING
 function cargarRanking(){
 
-    rest.get("/api/ministerio/datos", function(estado, datos){
+    rest.get(URL_MINISTERIO,function(estado,datos){
 
         if(estado != 200){
             alert("Error al obtener los datos del Ministerio");

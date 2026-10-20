@@ -25,11 +25,11 @@
 		var xhr = new XMLHttpRequest();
 		xhr.open(method, url, async);
 		//AÑADIDO PARA JWT
-		if(window.token){
+		if(window.token && url.startsWith("/api/")){
     		xhr.setRequestHeader(
         		"Authorization",
        			"Bearer " + window.token
-    		);
+  		  );
 		}
 
 		//xhr.responseType = 'json'; // el tipo de la respuesta que se espera es JSON

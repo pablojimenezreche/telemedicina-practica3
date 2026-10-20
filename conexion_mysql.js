@@ -25,3 +25,4 @@ conexionBD.getConnection(function(error, conexion) {
 });
 
 module.exports = conexionBD;
+
