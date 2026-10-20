@@ -1,3 +1,4 @@
+var path=require("path");
 var express=require("express");
 require("dotenv").config();
 var jwt=require("jsonwebtoken");
@@ -29,7 +30,7 @@ app.listen(PORT,function(){
     console.log("Servidor REST escuchando en puerto "+PORT);
 });
 
-app.use("/gestor",express.static("cliente_rest"));
+app.use("/gestor",express.static(path.join(__dirname,"cliente_rest")));
 // app.use("/sanitario",express.static("cliente_rpc"));
 app.use(express.json());
 
